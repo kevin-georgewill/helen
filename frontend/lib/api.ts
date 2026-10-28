@@ -62,8 +62,20 @@ const uploadFile = <T>(path: string, formData: FormData) =>
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  register: (body: { email: string; password: string; full_name: string }) =>
-    post<{ token: string }>('/auth/register', body),
+  register: (body: {
+  email: string
+  password: string
+  full_name: string
+  role: 'student' | 'instructor'
+
+  professional_title?: string
+  expertise?: string
+  years_of_experience?: number
+  bio?: string
+  linkedin?: string
+  website?: string
+}) =>
+  post<{ token: string }>('/auth/register', body),
 
   // Documented backend login. The frontend signs in via Supabase Auth directly
   // (see lib/auth.ts), so this mirrors API.md for completeness / non-browser clients.
@@ -250,13 +262,55 @@ export const blogApi = {
 
 // ─── Payments ────────────────────────────────────────────────────────────────
 
-export const paymentsApi = {
-  paystackInitiate: (courseId: string) =>
-    post<{ pay_url: string }>('/payments/paystack/initiate', { course_id: courseId }),
 
-  stripeInitiate: (courseId: string) =>
-    post<{ client_secret: string }>('/payments/stripe/initiate', { course_id: courseId }),
+export const paymentsApi = {
+  paystackInitiate: (courseId: string, market: string) =>
+    post<{ pay_url: string; reference: string }>(
+      '/payments/paystack/initiate',
+      { course_id: courseId, market }
+    ),
+
+  paystackVerify: (reference: string) =>
+    post<{ status: 'paid'; enrollment_id?: string }>(
+      '/payments/paystack/verify',
+      { reference }
+    ),
 }
+
+export interface PricingMarket {
+  market: string
+  currency: string
+  country: string
+}
+
+export interface CoursePrice {
+  id: string
+  course_id: string
+  market: string
+  currency: string
+  amount_minor: number | string
+  course: {
+    id: string
+    title: string
+    slug: string
+    description: string | null
+    thumbnail_url: string | null
+    program_type: string
+    level: string
+    duration: string | null
+    is_published: boolean
+  }
+}
+
+export const pricingApi = {
+  markets: () => get<PricingMarket[]>('/payments/markets'),
+
+  prices: (market: string) =>
+    get<CoursePrice[]>(
+      `/payments/prices?market=${encodeURIComponent(market)}`
+    ),
+}
+
 
 // ─── Admin ───────────────────────────────────────────────────────────────────
 
@@ -280,3 +334,59 @@ export const adminApi = {
   approveCertificate: (enrollmentId: string) =>
     post<Certificate>(`/admin/certificates/${enrollmentId}/approve`),
 }
+
+//____________Instructos____________________________________________________
+// ─── Instructors ─────────────────────────────────────────────
+
+export interface Instructor {
+  id: string
+  professional_title: string
+  expertise: string
+  years_of_experience: number
+  bio: string
+  linkedin: string
+  website: string
+  full_name: string
+  email: string;
+  profiles: {
+    full_name: string
+    avatar_url: string | null
+    phone: string | null;
+  }
+}
+
+export const instructorsApi = {
+  list: () => get<Instructor[]>("/instructors"),
+
+  me: () => get<Instructor>("/instructors/me"),
+
+  dashboard: () =>
+    get<{
+      instructor: {
+        full_name: string;
+        avatar_url: string | null;
+        professional_title: string;
+        expertise: string;
+        years_of_experience: number;
+      };
+
+      stats: {
+        total_students: number;
+        total_courses: number;
+        pending_assignments: number;
+        upcoming_classes: number;
+      };
+
+      notifications: {
+        id: number;
+        message: string;
+      }[];
+
+      recent_activities: {
+        id: number;
+        user: string;
+        activity: string;
+        time: string;
+      }[];
+    }>("/instructors/dashboard"),
+};
